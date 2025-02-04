@@ -7,7 +7,7 @@
   #### 2. allows operations such as adding, removing, retrieving, and updating elements
   #### 3. implement efficient LIFO and FIFO queues.
   #### 4. Storage use is optimized, and all operations are O(1) constant time.This includes {clear} but excludes {values}.
-## A self -implemented upgrade proxy contract
+## A self -implemented upgrade proxy contract(ERC1967)
   ### Code Position
   #### contracts/proxy/ERC1967/TransparentUpgradeableProxy.sol
   ### feature
