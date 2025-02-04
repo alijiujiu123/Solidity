@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
 import "https://github.com/GNSPS/solidity-bytes-utils/blob/master/contracts/BytesLib.sol";
 import "contracts/LogLibrary.sol";
-import "contracts/LinkedList.sol";
+import "contracts/structs/LinkedList.sol";
 contract LibraryTest {
     // 日志
     using LogLibrary for *;
