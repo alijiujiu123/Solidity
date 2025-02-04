@@ -16,3 +16,10 @@
   #### 3. The logic contract is upgradeable, with configurable admin management (adminAddress).
   #### 4. Ensures memory layout consistency (custom storage slot following ERC1967).
   #### 5. Calls initialization logic.
+## Authorized contract with time limit
+  ### Code Position
+  #### contracts/utils/GrantPrivileges.sol
+  ### feature
+  #### 1. Access Control: Admin and Owner Permissions
+  #### 2. Time-Based Authorization Management
+  #### 3。 Admin Address Management (Upgradeable Admin Role)
