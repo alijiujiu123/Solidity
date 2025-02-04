@@ -1,0 +1,71 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.21;
+import "contracts/LogLibrary.sol";
+import "contracts/ERC1967Utils.sol";
+// 权限控制交由ProxyAdmin处理
+contract ProxyAdmin {
+    constructor(address _adminAddress) {
+        ERC1967Utils.setAdminAddress(_adminAddress);
+    }
+    // 提供onlyAdmin修饰器
+    modifier onlyAdmin() {
+        require(msg.sender == ERC1967Utils.getAdminAddress(), "only admin can call this");
+        _;
+    }
+    // 变更admin
+    function _changeAdmin(address _newAdmin) internal onlyAdmin {
+        ERC1967Utils.setAdminAddress(_newAdmin);
+    }
+}
+// 实现特性：
+// 1.fallbcak转发逻辑合约
+// 2._fallback返回数据汇编处理
+// 3.逻辑合约可升级，可变更权限管理（adminAddress）
+// 4.内存布局一致性处理（自定义存储槽ERC1967）
+contract MyUpgradeProxy is ProxyAdmin {
+    using LogLibrary for *;
+    constructor(address _logicAddress) ProxyAdmin(msg.sender) {
+        ERC1967Utils.setImplementationAddress(_logicAddress);
+    }
+    fallback() external payable {
+        // 转发到逻辑合约
+        ERC1967Utils.delegatecall();
+    }
+    receive() external payable {}
+    // 升级合约
+    function upgradeLogicAddress(address newLogicAddress) external onlyAdmin {
+        ERC1967Utils.setImplementationAddress(newLogicAddress);
+    }
+    // 变更admin
+    function changeAdmin(address _newAdmin) external onlyAdmin {
+        super._changeAdmin(_newAdmin);
+    }
+}
+
+// v1合约：只支持自增1
+contract LogicV1 {
+    uint256 private counter;
+    function increa() external {
+        counter++;
+    }
+    function getCounter() external view returns (uint256) {
+        return counter;
+    }
+}
+
+// v2合约：支持自增1，自减1，支持自增任意数字
+contract LogicV2 {
+    uint256 private counter;
+    function increa() external {
+        counter++;
+    }
+    function increaBy(uint256 num) external {
+        counter += num;
+    }
+    function decrea() external {
+        counter--;
+    }
+    function getCounter() external view returns (uint256) {
+        return counter;
+    }
+}
