@@ -22,7 +22,7 @@ contract ProxyAdmin {
 // 2._fallback返回数据汇编处理
 // 3.逻辑合约可升级，可变更权限管理（adminAddress）
 // 4.内存布局一致性处理（自定义存储槽ERC1967）
-contract MyUpgradeProxy is ProxyAdmin {
+contract TransparentUpgradeableProxy is ProxyAdmin {
     using LogLibrary for *;
     constructor(address _logicAddress) ProxyAdmin(msg.sender) {
         ERC1967Utils.setImplementationAddress(_logicAddress);
