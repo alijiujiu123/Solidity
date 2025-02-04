@@ -16,6 +16,9 @@ contract GrantPrivileges {
     // 授权用户映射
     mapping(address => OwnerInfo) public ownerInfoMapping;
     // 构造器传入admin地址
+    constructor() {
+        adminAddress = msg.sender;
+    }
     // 修饰器定义
     modifier onlyAdmin() {
         require(msg.sender==adminAddress, "only admin address can access");
