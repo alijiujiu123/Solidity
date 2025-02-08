@@ -90,6 +90,9 @@ Robust **reentrancy protection** for smart contracts with both **transient stora
 
 ### 🔄 Standard Storage-Based Locks
 
+<details>
+  <summary>Click to expand AbstractNonReentrantLock example</summary>
+
 ```solidity
 import "contracts/utils/AbstractNonReentrantLock.sol";
 
@@ -108,6 +111,10 @@ contract MyContract is AbstractNonReentrantLock {
     }
 }
 ```
+</details>
+
+<details>
+  <summary>Click to expand NonReentrantLock example</summary>
 
 ```solidity
 import "contracts/utils/NonReentrantLock.sol";
@@ -136,8 +143,12 @@ contract MyContract {
     }
 }
 ```
+</details>
 
 ### 🔄 Using Transient Storage Locks (EIP-1153)
+
+<details>
+  <summary>Click to expand AbstractNonReentrantLockTransient example</summary>
 
 ```solidity
 import "contracts/utils/AbstractNonReentrantLockTransient.sol";
@@ -157,6 +168,10 @@ contract MyContract is AbstractNonReentrantLockTransient {
     }
 }
 ```
+</details>
+
+<details>
+  <summary>Click to expand NonReentrantLockTransient example</summary>
 
 ```solidity
 import "contracts/utils/NonReentrantLockTransient.sol";
@@ -183,3 +198,4 @@ contract MyContract {
     }
 }
 ```
+</details>
