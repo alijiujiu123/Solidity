@@ -88,10 +88,59 @@ Robust **reentrancy protection** for smart contracts with both **transient stora
 
 ## 🛠 Example Usage
 
+### 🔄 Standard Storage-Based Locks
+
+```solidity
+import "contracts/utils/AbstractNonReentrantLock.sol";
+
+contract MyContract is AbstractNonReentrantLock {
+    uint256 private _balance;
+
+    // Default transient lock
+    function deposit() external nonReentrantLock {
+        _balance += 1;
+    }
+
+    // Custom transient lock with unique seed
+    function withdraw() external nonReentrantcustomizeLock("withdraw.lock") {
+        require(_balance > 0, "Insufficient balance");
+        _balance -= 1;
+    }
+}
+```
+
+```solidity
+import "contracts/utils/NonReentrantLock.sol";
+
+contract MyContract {
+    using NonReentrantLock for *;
+    uint256 private _balance;
+
+    // Default transient lock
+    function deposit() external {
+        NonReentrantLock.NonReentrantLock memory lock = NonReentrantLock.getLock();
+        lock.lock();
+        _balance += 1;
+        lock.unlock();
+        // do some thing else
+    }
+
+    // Custom transient lock with unique seed
+    function withdraw() external nonReentrantcustomizeLock("withdraw.lock") {
+        require(_balance > 0, "Insufficient balance");
+        NonReentrantLock.NonReentrantLock memory lock = NonReentrantLock.getLock("withdraw.lock");
+        lock.lock();
+        _balance -= 1;
+        lock.unlock();
+        // do some thing else
+    }
+}
+```
+
 ### 🔄 Using Transient Storage Locks (EIP-1153)
 
 ```solidity
-import "./AbstractNonReentrantLockTransient.sol";
+import "contracts/utils/AbstractNonReentrantLockTransient.sol";
 
 contract MyContract is AbstractNonReentrantLockTransient {
     uint256 private _balance;
@@ -107,3 +156,30 @@ contract MyContract is AbstractNonReentrantLockTransient {
         _balance -= 1;
     }
 }
+```
+
+```solidity
+import "contracts/utils/NonReentrantLockTransient.sol";
+
+contract MyContract {
+    using NonReentrantLockTransient for *;
+    uint256 private _balance;
+
+    // Default transient lock
+    function deposit() external {
+        NonReentrantLockTransient.NonReentrantLock memory lock = NonReentrantLockTransient.getLock();
+        lock.lock();
+        _balance += 1;
+        lock.unlock();
+    }
+
+    // Custom transient lock with unique seed
+    function withdraw() external nonReentrantcustomizeLock("withdraw.lock") {
+        require(_balance > 0, "Insufficient balance");
+        NonReentrantLockTransient.NonReentrantLock memory lock = NonReentrantLockTransient.getLock("withdraw.lock");
+        lock.lock();
+        _balance -= 1;
+        lock.unlock();
+    }
+}
+```
