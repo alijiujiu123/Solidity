@@ -49,18 +49,46 @@ This project implements an **EIP-1967 compliant Transparent Upgradeable Proxy** 
 
 ---
 
-## 3. ⏳ Authorized Contract with Time Limit
+## 3. ⏳ Grant Privileges Smart Contract
 
-A utility contract providing **access control** mechanisms with **time-limited permissions**.
+This project implements a **time-based access control** system in Solidity. The `GrantPrivileges` contract allows an admin to grant time-limited access to users for specific functions within derived contracts. It ensures secure role-based access, making it ideal for subscription models or time-restricted services.
 
-### 📄 **Code Location**  
-`contracts/utils/GrantPrivileges.sol`
+### Overview
 
-### ✨ **Features**
+- **`contracts/utils/GrantPrivileges.sol`**: An abstract contract providing admin-managed, time-limited authorization mechanisms.
+- **Example Usage (`EatFoodContract`)**: Demonstrates how to extend `GrantPrivileges` to create restricted-access functions.
 
-- **Access Control**: Supports both **Admin** and **Owner** roles for secure management.
-- **Time-Based Authorization**: Grants permissions for specific time durations, automatically revoking access afterward.
-- **Upgradeable Admin Role**: Allows dynamic management of admin addresses for flexible control.
+### Features
+
+- **Admin-Controlled Access**: Only the admin can add or manage users with privileges.
+- **Time-Limited Ownership**: Users receive time-restricted access to contract functions.
+- **Role-Based Modifiers**: 
+  - `onlyAdmin`: Restricts functions to the admin.
+  - `onlyOwner`: Allows access to either the admin or authorized users within the validity period.
+- **Dynamic Ownership Management**:
+  - `addOwner(address, uint)`: Grants time-limited access to a user.
+  - `getRemainingTime()`: Allows users to check their remaining access time.
+  - `changeAdmin(address)`: Admin can transfer their role to another address.
+
+### Example Usage
+
+<details>
+  <summary>Click to expand EatFoodContract example</summary>
+
+```solidity
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.21;
+import "contracts/utils/GrantPrivileges.sol";
+
+// Business contract extending GrantPrivileges for role-based access control
+contract EatFoodContract is GrantPrivileges {
+    // Function restricted to admin or authorized users within the time limit
+    function eatFood(string calldata str) external view onlyOwner returns (bytes32) {
+        return keccak256(abi.encode(str));
+    }
+}
+```
+</details>
 
 ---
 
