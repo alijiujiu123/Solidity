@@ -29,20 +29,23 @@ A flexible linked list implementation supporting various data types, optimized f
 
 ---
 
-## 2. 🔄 Self-Implemented Upgrade Proxy Contract (ERC1967)
+## 2. 🔄 Self-Implemented Transparent Upgradeable Proxy
 
-A custom implementation of an **upgradeable proxy** contract following the **ERC1967** standard, ensuring safe upgrades and storage consistency.
+This project implements an **EIP-1967 compliant Transparent Upgradeable Proxy** pattern using Solidity. The proxy contract allows for seamless upgrades of logic contracts while maintaining storage consistency and access control via admin roles.
 
-### 📄 **Code Location**  
-`contracts/proxy/ERC1967/TransparentUpgradeableProxy.sol`
+### Overview
 
-### ✨ **Features**
+- **`contracts/proxy/ERC1967/ERC1967Utils.sol`**: Utility library for managing storage slots and low-level delegate calls.
+- **`contracts/proxy/ERC1967/ProxyAdmin.sol`**: Handles admin permissions, restricting upgrade and management functions to authorized addresses.
+- **`contracts/proxy/ERC1967/TransparentUpgradeableProxy.sol`**: The main proxy contract that forwards calls to logic contracts, with built-in upgradeability and admin control.
 
-- **Fallback Handling**: Automatically forwards calls to the logic contract.
-- **Assembly-Based Fallback**: `_fallback` function handles returned data using low-level assembly for optimized performance.
-- **Upgradeable Logic**: Supports contract upgrades with configurable admin management (`adminAddress`).
-- **Memory Layout Consistency**: Maintains a consistent layout using custom storage slots, adhering to ERC1967 standards.
-- **Initialization Logic**: Calls initialization routines during deployment or upgrades.
+### Features
+
+- **EIP-1967 Storage Compliance**: Ensures consistent memory layout using predefined storage slots for implementation and admin addresses.
+- **Transparent Proxy Pattern**: Separates admin functions from user interactions, preventing accidental administrative calls by regular users.
+- **Upgradeable Logic Contracts**: Allows the admin to upgrade the logic contract and optionally initialize the new implementation.
+- **Admin Control**: Secure admin role management with the ability to transfer permissions.
+- **Fallback and Receive Functions**: Supports forwarding of calls and Ether handling through `fallback()` and `receive()` functions.
 
 ---
 
