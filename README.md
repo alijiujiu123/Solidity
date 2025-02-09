@@ -8,7 +8,7 @@ This repository contains a collection of versatile **Solidity contracts and libr
 
 1. [Generalized Linked List Structure](#1-generalized-linked-list-structure)
 2. [Self-Implemented Upgrade Proxy (ERC1967)](#2-self-implemented-upgrade-proxy-erc1967)
-3. [Authorized Contract with Time Limit](#3-authorized-contract-with-time-limit)
+3. [Grant Privileges Smart Contract](#3-authorized-contract-with-time-limit)
 4. [Reentrancy Lock Libraries](#4-reentrancy-lock-libraries)
 
 ---
