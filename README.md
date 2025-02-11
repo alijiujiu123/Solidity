@@ -10,6 +10,7 @@ This repository contains a collection of versatile **Solidity contracts and libr
 2. [Self-Implemented Upgrade Proxy (ERC1967)](#2-self-implemented-upgrade-proxy-erc1967)
 3. [Grant Privileges Smart Contract](#3-authorized-contract-with-time-limit)
 4. [Reentrancy Lock Libraries](#4-reentrancy-lock-libraries)
+5. [EIP-2535 Diamond Standard Implementation](#5-reentrancy-lock-libraries)
 
 ---
 
@@ -39,7 +40,7 @@ This project implements an **EIP-1967 compliant Transparent Upgradeable Proxy** 
 - **`contracts/proxy/ERC1967/ProxyAdmin.sol`**: Handles admin permissions, restricting upgrade and management functions to authorized addresses.
 - **`contracts/proxy/ERC1967/TransparentUpgradeableProxy.sol`**: The main proxy contract that forwards calls to logic contracts, with built-in upgradeability and admin control.
 
-### Features
+### ✨ Features
 
 - **EIP-1967 Storage Compliance**: Ensures consistent memory layout using predefined storage slots for implementation and admin addresses.
 - **Transparent Proxy Pattern**: Separates admin functions from user interactions, preventing accidental administrative calls by regular users.
@@ -58,7 +59,7 @@ This project implements a **time-based access control** system in Solidity. The 
 - **`contracts/utils/GrantPrivileges.sol`**: An abstract contract providing admin-managed, time-limited authorization mechanisms.
 - **Example Usage (`EatFoodContract`)**: Demonstrates how to extend `GrantPrivileges` to create restricted-access functions.
 
-### Features
+### ✨ Features
 
 - **Admin-Controlled Access**: Only the admin can add or manage users with privileges.
 - **Time-Limited Ownership**: Users receive time-restricted access to contract functions.
@@ -115,11 +116,9 @@ Robust **reentrancy protection** for smart contracts with both **transient stora
 - **Reusable Modifiers**: Simplified reentrancy protection with `nonReentrantLock` and `nonReentrantcustomizeLock`.
 - **EIP-1153 Support**: Fully compatible with chains supporting **EIP-1153**, with standard storage fallback.
 
----
+### 🛠 Example Usage
 
-## 🛠 Example Usage
-
-### 🔄 Standard Storage-Based Locks
+#### 🔄 Standard Storage-Based Locks
 
 <details>
   <summary>Click to expand AbstractNonReentrantLock example</summary>
@@ -176,7 +175,7 @@ contract MyContract {
 ```
 </details>
 
-### 🔄 Using Transient Storage Locks (EIP-1153)
+#### 🔄 Using Transient Storage Locks (EIP-1153)
 
 <details>
   <summary>Click to expand AbstractNonReentrantLockTransient example</summary>
@@ -230,3 +229,21 @@ contract MyContract {
 }
 ```
 </details>
+
+---
+
+## 5. 🔄 EIP-2535 Diamond Standard Implementation
+
+This repository provides a custom implementation of the [EIP-2535 Diamond Standard](https://eips.ethereum.org/EIPS/eip-2535). The Diamond Standard enables flexible and modular smart contract development through the use of facets, allowing dynamic addition, replacement, and removal of functions.
+
+### Overview
+
+The Diamond Standard allows for:
+- Adding, replacing, and removing functions dynamically.
+- Efficient storage management and modular upgrades.
+- Improved contract management via facets.
+
+This implementation includes core contracts for managing the diamond lifecycle, querying facets, and handling storage.
+
+### 📄 **Code Location**  
+`contracts/proxy/EIP2535/*.sol`
