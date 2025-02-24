@@ -11,6 +11,7 @@ This repository contains a collection of versatile **Solidity contracts and libr
 3. [Grant Privileges Smart Contract](#3-authorized-contract-with-time-limit)
 4. [Reentrancy Lock Libraries](#4-reentrancy-lock-libraries)
 5. [EIP-2535 Diamond Standard Implementation](#5-reentrancy-lock-libraries)
+6. [BitMaps & MultiBitsMaps](#6-reentrancy-lock-libraries)
 
 ---
 
@@ -247,3 +248,73 @@ This implementation includes core contracts for managing the diamond lifecycle, 
 
 ### 📄 **Code Location**  
 `contracts/proxy/EIP2535/*.sol`
+
+---
+
+## 6. 🗂 BitMaps & MultiBitsMaps
+
+### Overview
+
+This repository provides Solidity implementations for efficient bitmaps:
+
+- **BitMaps**: A simple bitmap where each bit represents a boolean value (`0` or `1`).
+- **MultiBitsMaps**: A more advanced bitmap where each element can occupy multiple bits (e.g., 4-bit or 8-bit values).
+
+These data structures optimize storage in Solidity by packing multiple values into a single `uint256` slot, reducing gas costs compared to traditional mappings.
+
+### BitMaps
+
+#### ✨ Features
+
+- Stores boolean values efficiently.
+- Uses a mapping of `uint256` where each bit represents an element.
+- Supports setting, clearing, and checking the state of a bit.
+
+#### Functions
+
+<details>
+  <summary>Click to expand BitMaps Functions</summary>
+
+```solidity
+function set(BitMap storage bitmap, uint256 index) internal;
+function unset(BitMap storage bitmap, uint256 index) internal;
+function get(BitMap storage bitmap, uint256 index) internal view returns (bool);
+```
+</details>
+
+### MultiBitsMaps
+
+#### ✨ Features
+
+- Stores small integer values in a compressed format.
+- Available in **4-bit** and **8-bit** variants.
+- Efficient storage allocation for applications requiring limited-range values.
+
+#### Supported Structures
+
+- **FourBitsMap**: Stores values in the range `{0, ..., 15}` (4 bits per element).
+- **ByteMap**: Stores values in the range `{0, ..., 255}` (8 bits per element).
+
+#### Functions
+
+<details>
+  <summary>Click to expand MultiBitsMaps Functions</summary>
+
+```solidity
+function set(Uint256FourBitsMap storage bitmap, uint256 index, uint8 value) internal;
+function get(Uint256FourBitsMap storage bitmap, uint256 index) internal view returns (uint8);
+
+function set(Uint256ByteMap storage bitmap, uint256 index, uint8 value) internal;
+function get(Uint256ByteMap storage bitmap, uint256 index) internal view returns (uint8);
+```
+</details>
+
+### Gas Efficiency
+
+- **BitMaps** require only `SLOAD` or `SSTORE` operations, making them highly gas-efficient.
+- **MultiBitsMaps** optimize storage by packing multiple values into a single `uint256`, reducing storage writes.
+
+## Use Cases
+
+- **BitMaps**: Tracking user permissions, feature flags, NFT ownership, and whitelisting.
+- **MultiBitsMaps**: Managing game attributes, voting weights, token multipliers, and reputation scores.
