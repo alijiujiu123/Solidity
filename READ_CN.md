@@ -34,6 +34,10 @@
 - **队列实现**：支持 **LIFO**（后进先出）和 **FIFO**（先进先出）模式。
 - **Gas 优化**：所有操作的时间复杂度均为 **O(1)**。
 
+### 📌 **使用场景**
+- 适用于队列、订单簿、任务管理等需要有序存储的应用场景。
+- 支持 LIFO（后进先出）和 FIFO（先进先出）模式，如 DeFi 交易排队、活动报名系统。
+
 ---
 
 ## 2. 🗂 BitMaps & MultiBitsMaps
@@ -80,6 +84,11 @@ function get(Uint256ByteMap storage bitmap, uint256 index) internal view returns
 - **BitMaps** 仅涉及 `SLOAD` 或 `SSTORE` 操作，极大优化 Gas 费用。
 - **MultiBitsMaps** 通过数据压缩减少存储写入，提高效率。
 
+### 📌 **使用场景**
+- 高效存储用户权限、白名单状态、NFT 拥有情况等布尔值数据。
+- 在链上游戏中存储角色属性、技能等级、道具状态等数值信息。
+- 用于投票系统，优化投票权重存储，减少存储开销。
+
 ---
 
 ## 3. 🔄 自实现的可升级代理（ERC1967）
@@ -97,6 +106,10 @@ function get(Uint256ByteMap storage bitmap, uint256 index) internal view returns
 - **支持升级逻辑合约**，并可在升级时进行初始化。
 - **安全的管理员控制**，提供权限管理和转移功能。
 
+### 📌 **使用场景**
+- 用于需要支持升级的智能合约，如 DeFi 协议、DAO 合约等，保证存储布局的一致性。
+- 通过 ProxyAdmin 进行升级管理，确保合约逻辑可控。
+
 ---
 
 ## 4. 🔄 EIP-2535 钻石标准实现
@@ -110,6 +123,10 @@ function get(Uint256ByteMap storage bitmap, uint256 index) internal view returns
 - **动态添加、替换和删除合约函数**。
 - **模块化存储管理**，支持 Facet 结构。
 - **更灵活的合约管理**，适用于复杂 DApp。
+
+### 📌 **使用场景**
+- 适用于功能复杂的大型智能合约，能够动态添加、替换、移除合约功能模块。
+- 适合 NFT、元宇宙、链游等需要不断扩展功能的场景。
 
 ---
 
@@ -131,6 +148,10 @@ function get(Uint256ByteMap storage bitmap, uint256 index) internal view returns
   - `getRemainingTime()`：查询剩余访问时间。
   - `changeAdmin(address)`：管理员权限转移。
 
+### 📌 **使用场景**
+- 适用于订阅服务、限时访问权限、按时间收费的 DApp，确保用户权限在规定时间内有效。
+- 适合链上访问控制，如基于时效的 NFT 权限、游戏道具租赁等场景。
+
 ---
 
 ## 6. 🔒 重入锁库
@@ -151,6 +172,10 @@ function get(Uint256ByteMap storage bitmap, uint256 index) internal view returns
   - **瞬态存储** 自动在交易结束时重置，减少 Gas 消耗。
   - **标准存储** 适用于不支持 EIP-1153 的链。
 - **简化的修饰符**：`nonReentrantLock` 和 `nonReentrantcustomizeLock`。
+
+### 📌 **使用场景**
+- 适用于 DeFi 协议、合约间交互、资产转账等涉及资金安全的场景，防止重入攻击。
+- 提供 EIP-1153 短暂存储锁（Transient Storage），在支持的链上节省 Gas 费用。
 
 ---
 
