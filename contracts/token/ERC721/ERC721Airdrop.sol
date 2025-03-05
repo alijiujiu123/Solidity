@@ -18,7 +18,7 @@ contract ERC721Airdrop is ERC721Enumerable,Pausable {
     BitMaps.AddressBitMap private dropAddresses;
 
     error AirdropMerkleProofFailure();
-    constructor1() ERC721(_name, _symbol) {
+    constructor() ERC721(_name, _symbol) {
         admin = msg.sender;
     }
     modifier onlyOwner() {
@@ -65,14 +65,14 @@ contract ERC721Airdrop is ERC721Enumerable,Pausable {
     }
 
     // 设置空投merkle root
-    function addAirdropClaimed(bytes32 _merkleRoot_) public onlyOwner {
+    function addAirdropWithMerkleRoot(bytes32 _merkleRoot_) public onlyOwner {
         require(_merkleRoot_ != bytes32(0), "mint: merkle root must not be zero");
         // 设置 Merkle Root
         _merkleRoot = _merkleRoot_;
     }
 
     // admin派发nft
-    function claimToken(address to) external onlyOwner returns (uint256){
+    function specificAirdropToken(address to) external onlyOwner returns (uint256){
         require(!dropAddresses.get(to),"already claimed");
         // 返回空投tokenId
         uint256 tokenId = tokenCounter++;
@@ -81,8 +81,29 @@ contract ERC721Airdrop is ERC721Enumerable,Pausable {
         return tokenId;
     }
 
-    // 空投
-    function airdrop(bytes32[] calldata merkleProofs) external returns (uint256) {
+    // 空投: 通过merkleProof领取
+    // merkleProof空投发放
+    // (一)设置merkleRoot
+    // 1.生成merkle tree: 将发放名单地址列表通过https://lab.miguelmota.com/merkletreejs/example/ 生成merkle tree。（keccak-256, hashLeaves, sortPairs）
+            //发放名单     ["0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2", "0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db","0x78731D3Ca6b7E34aC0F824c42a7cC18A495cabaB","0x617F2E2fD72FD9D5503197092aC168c91465E7f2"]
+            // Tree
+            // └─ fbaa96a1f7806c1ab06f957c8fc6e60875b6880254f77b71439c7854a6b47755              merkleRoot
+            //    ├─ 39a01635c6a38f8beb0adde454f205fffbb2157797bf1980f8f93a5f70c9f8e6               parant1
+            //    │  ├─ 999bf57501565dbd2fdcea36efa2b9aef8340a8901e3459f4a4c926275d36cdb                leaf1
+            //    │  └─ 04a10bfd00977f54cc3450c9b25c9b3a502a089eba0097ba35fc33c4ea5fcb54                leaf2
+            //    └─ da2a605bdf59a3b18e24cd0b2d9110b6ffa2340f6f67bc48214ac70e49d12770               parant2
+            //       ├─ dfbe3e504ac4e35541bebad4d0e7574668e16fefa26cd4172f93e18b59ce9486                leaf3
+            //       └─ f6d82c545c22b72034803633d3dda2b28e89fb704f3c111355ac43e10612aedc                leaf4
+    // 2.保存merkleRoot: 调用addAirdropWithMerkleRoot(fbaa96a1f7806c1ab06f957c8fc6e60875b6880254f77b71439c7854a6b47755)
+    // (二) 验证并领取merkleProof空投
+    // 1. 生成merkleProofs: 如果要领取leaf4的nft空投，则merkleProofs为[leaf3, parant1]
+    // 2. 切换leaf4账户，调用claimWithMerkleProof()
+    // 3. 根据msg.sender(即leaf4账户)，keccak哈希计算出leaf4'
+    // 4. leaf4通过和merkleProofs中的值，依次hash：
+    //     hash(leaf4', merkleProofs[0]) -> parant2';   // merkleProofs[0] 即为leaf3
+    //     hash(parant2', merkleProofs[1]) -> root'     // merkleProofs[1] 即为parant1
+    // 5. 验证root': 如果通过还原出的root' == root, 验证通过并铸币给msg.sender
+    function claimWithMerkleProof(bytes32[] calldata merkleProofs) external returns (uint256) {
         require(_merkleRoot != bytes32(0), "mint: must set merkle root");
         require(!dropAddresses.get(msg.sender),"already claimed");
         bytes32 leaf = bytes32(keccak256(abi.encodePacked(msg.sender)));
@@ -120,5 +141,72 @@ contract ERC721Airdrop is ERC721Enumerable,Pausable {
             mstore(0x20, b)
             value := keccak256(0x00, 0x40)
         }
+    }
+
+    error SignatureVerificationFailure(string reason,address signer);
+
+    // 签名验证空投发放
+    // (一) 签名生成步骤：
+    // 1.打包消息：调用getMessageHash(toAddress),根据待发放地址toAddress生成messageHash
+    // 2.remix生成签名：通过admin账户生成messageHash的签名signature
+    // 3.领取空投：切换领取地址toAddress, 调用claimWithSignature(signature)领取成功
+    // (二)签名验证
+    // 1.打包消息：将msg.sender打包为messageHash'
+    // 2.生成以太坊签名: messageHash' -> ethMessageHash
+    // 3.解析签名者地址：通过ethMessageHash和签名signature，解析还原签名者公钥signer
+    // 4.验证signer：签名生成者为admin，铸币给msg.sender
+    function claimWithSignature(bytes memory signature) external returns (uint256) {
+        require(signature.length == 65, "Invalid signature length");
+        require(!dropAddresses.get(msg.sender),"already claimed");
+        // 生成以太坊签名
+        bytes32 messageHash = getMessageHash(msg.sender);
+        bytes32 ethMessageHash = getETHMessageHash(messageHash);
+        // 还原签名
+        address signer = _recoverSigner(ethMessageHash, signature);
+        if (signer != admin) {
+            revert SignatureVerificationFailure("signature must sign by admin", signer);
+        }
+        // mint
+        uint256 tokenId = tokenCounter++;
+        _safeMint(msg.sender, tokenId);
+        dropAddresses.set(msg.sender);
+        return tokenId;
+    }
+
+    function getMessageHash(address _address) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_address));
+    }
+
+    // 获取address的ethHash
+    function getETHMessageHash(bytes32 hash) public pure returns (bytes32) {
+        // 计算hash
+        // bytes32 hash = keccak256(abi.encode(_address));
+        // 计算ethHash
+        bytes32 ethHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+        return ethHash;
+    }
+
+    // 从签名中还原公钥
+    function _recoverSigner(bytes32 messageHash, bytes memory signature) private pure returns (address) {
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            // mload(pos)     读取从pos开始的，后边的32byte
+            // add(sig, 0x20)   返回sig向后移动0x20(即32)个字节的位置pos
+            // signature的存储结构: 
+            //      前32个字节[0, 31]存储bytes长度: 65; 
+            //      第二个32个字节[32,63]存储r; 
+            //      第三个32字节[64, 95]存储s; 
+            //      最后一个32字节[96, 127]，仅96字节有效, 存储v, 其余字节([97,127])无效填充0x00
+            r := mload(add(signature, 0x20))
+            s := mload(add(signature, 0x40))
+            // byte(0, data)    取data中字节index为0的数据
+            v := byte(0, mload(add(signature, 0x60)))
+        }
+        if (v < 27) {
+            v += 27;
+        }
+        return ecrecover(messageHash, v, r, s);
     }
 }
