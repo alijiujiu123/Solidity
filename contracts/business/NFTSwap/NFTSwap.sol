@@ -29,30 +29,69 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
         address indexed operator, 
         address from, 
         uint256 indexed tokenId, 
-        bytes data);
+        bytes data
+    );
     // nft上架
     event OrderOnSale(
         address indexed nftAddress, 
         uint256 indexed tokenId, 
-        address indexed owner);
+        address indexed owner
+    );
     // nft价格修改
     event OrderInfoUpdate(
         address indexed nftAddress, 
         uint256 indexed tokenId, 
         uint256 oldPrice, 
-        uint256 newPrice);
+        uint256 newPrice
+    );
     // 撤单
     event Revoke(
         address indexed nftAddress, 
         uint256 indexed tokenId, 
-        address owner);
+        address owner
+    );
     // 购买事件
     event OrderPurchase(
         address indexed nftAddress, 
         uint256 indexed tokenId, 
         uint256 price, 
         address owner, 
-        address indexed buyer);
+        address indexed buyer
+    );
+    // nft订单转换shares事件
+    event NFTOrderConvertShares(
+        address indexed nftAddress, 
+        uint256 indexed tokenId, 
+        // 订单买家
+        address indexed buyer, 
+        // 订单价格
+        uint256 orderPrice, 
+        // 订单费用
+        uint256 feeAmount, 
+        // 免佣金额
+        uint256 freeFee,
+        // orderPrice-feeAmount+freeFee, 转换为shares数量
+        uint256 shares
+    );
+    // shares购买nft事件
+    event OrderPurchaseShares(
+        address indexed nftAddress, 
+        uint256 indexed tokenId, 
+        // 订单价格
+        uint256 price, 
+        // 订单卖家
+        address owner, 
+        // 买家
+        address indexed buyer,
+        // 订单shares价格
+        uint256 orderShares, 
+        // shares手续费
+        uint256 feeShares, 
+        // 免佣shares
+        uint256 freeFeeShares, 
+        // 卖家应得shares: orderShares-feeShares+freeFeeShares
+        uint256 ownerShares
+    );
     event Log(string desc, uint256 assets,uint256 shares);
     // 订单
     struct Order {
@@ -91,6 +130,27 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
         // 持有者
         address indexed owner
     );
+    // shares收益获取：nftOrder采用shares支付时；flashloan佣金
+    event GetBenefitShares(
+        // shares佣金
+        uint256 feeShares, 
+        // 收益类型
+        FeeType indexed feeType, 
+        // shares规模
+        uint256 shares, 
+        // 调用方
+        address indexed caller, 
+        // 持有者
+        address indexed owner,
+        // (当前)shares总供应
+        uint256 totalSupply, 
+        // (当前)eth总量
+        uint256 totalAssets, 
+        // 应收assetsFee：feeShares转换为feeAssets后，减去免佣金金额
+        uint256 needFee, 
+        // 免额assetsFee
+        uint256 feeFree
+    );
     // 购买基金份额，eth不充足
     error ETHInsufficient(uint256 msgValue, uint256 needAssets);
     // 卖出shares，账户基金份额不足
@@ -98,7 +158,7 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
     struct FoundInfo {
         // nft交易佣金比率(千分比)
         uint256 nftOrderFee;
-        // nft交易佣金总和
+        // nft交易佣金总和(eth支付)
         uint256 nftOrderEarning;
 
         // 资金池提取佣金比率(千分比)
@@ -124,7 +184,7 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
     address public admin;
     string private constant NAME = "SwapCoin";
     string private constant SYMBOL = "SC"; 
-    constructor1() ERC20(NAME, SYMBOL) {
+    constructor() ERC20(NAME, SYMBOL) {
         admin = msg.sender;
         // 默认nft交易手续费1.5%
         foundInfo.nftOrderFee = 15;
@@ -234,7 +294,7 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
         IERC721(_nftAddress).safeTransferFrom(address(this), msg.sender, _tokenId);
         emit Revoke(_nftAddress, _tokenId, msg.sender);
     }
-    // 5.商品下单
+    // 5. 商品下单(eth支付)
     function purchase(address _nftAddress, uint256 _tokenId) external payable returns (uint256) {
         // checks
         _checkOrderExists(_nftAddress, _tokenId);
@@ -246,7 +306,7 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
         // interactions
         IERC721(_nftAddress).safeTransferFrom(address(this), msg.sender, _tokenId);
         // 将owner(订单卖家)应收金额转换为基金份额
-        uint256 shares = _convertSharesByNFTOrderPrice(owner, price, msg.value);
+        uint256 shares = _convertSharesByNFTOrderPrice(_nftAddress, _tokenId, owner, price, msg.value);
         // 余额退还
         if (msg.value > price) {
             _doTransfer(msg.sender, msg.value - price);
@@ -257,6 +317,8 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
     // nft订单金额assets转换为，owner的基金份额
     // 相当于owner，以1.5%的佣金，买入基金份额
     function _convertSharesByNFTOrderPrice(
+        address nftAddress,
+        uint256 tokenId,
         // nft订单卖家
         address receiver, 
         // nft订单金额
@@ -264,16 +326,19 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
         uint256 msgValue
     ) private returns (uint256) {
         uint256 feeAmount = orderPrice.mulDiv(foundInfo.nftOrderFee, 1000, Math.Rounding.Ceil);
-        uint256 assets = orderPrice - feeAmount;
+        // 这里的caller=_msgSender(),即订单买家; owner=receiver,即订单卖家（这个逻辑没有问题，后续的免手续费是需要从订单卖家receiver额度中扣除的）
+        uint256 freeFee = _processFeeAssets(feeAmount, FeeType.NFTOrder, orderPrice, _msgSender(), receiver);
+        // 转换shares计算：订单金额 - 订单手续费 + 免佣金额度
+        uint256 assets = orderPrice - feeAmount + freeFee;
         uint256 shares;
         if (assets != 0) {
+            // effects
             // 计算份额
             shares = _convertToShares(assets, Math.Rounding.Floor, msgValue);
-            // effects
             _deposit(receiver, assets, shares);
-            // 这里的caller=_msgSender(),即订单买家; owner=receiver,即订单卖家（这个逻辑没有问题，后续的免手续费是需要从订单卖家receiver额度中扣除的）
-            _processFeeAssets(feeAmount, FeeType.NFTOrder, assets, _msgSender(), receiver);
         }
+        // 记录转换shares事件
+        emit NFTOrderConvertShares(nftAddress, tokenId, receiver, orderPrice, feeAmount, freeFee, shares);
         return shares;
     }
     // 金额校验
@@ -282,11 +347,44 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
             revert OrderPriceInsufficient(orderInfos[_nftAddress][_tokenId].price, msg.value);
         }
     }
-    // 6.商品查询
-    function queryOrderInfo(address _nftAddress, uint256 _tokenId) external view returns (address owner, uint256 price) {
+    // 6.商品下单 shares支付方式
+    function purchaseUseShares(address _nftAddress, uint256 _tokenId) external returns (uint256) {
+        // checks
+        _checkOrderExists(_nftAddress, _tokenId);
+        // 计算orderShares向下取整，鼓励buyer通过shars支付
+        address owner = orderInfos[_nftAddress][_tokenId].owner;
+        uint256 price = orderInfos[_nftAddress][_tokenId].price;
+        uint256 orderShares = previewDeposit(price);
+        require(balanceOf(msg.sender) >= orderShares, "Insufficient allowance");
+        // effects
+        delete orderInfos[_nftAddress][_tokenId];
+        // interactions
+        IERC721(_nftAddress).safeTransferFrom(address(this), msg.sender, _tokenId);
+        // 日志记录用，后续_burn会使数据发生变更，提前记录下来
+        // 1.orderFee
+        uint256 feeAmount = price.mulDiv(foundInfo.nftOrderFee, 1000, Math.Rounding.Floor);
+        uint256 feeShares = previewDeposit(feeAmount);
+        // 销毁feeShares, 算到基金收益
+        uint256 freeFeeShares = _processFeeShares(feeShares, FeeType.NFTOrder, orderShares, _msgSender(), owner);
+        uint256 needFeeShares = feeShares - freeFeeShares;
+        // 需支付佣金销毁，变为共同收益
+        _burn(msg.sender, needFeeShares);
+        // 2.计算owner应得
+        uint256 ownerShares = orderShares - needFeeShares;
+        // 转给 owner
+        _transfer(msg.sender, owner, ownerShares);
+        emit OrderPurchaseShares(_nftAddress, _tokenId, price, owner, msg.sender, 
+        orderShares, feeShares, freeFeeShares, ownerShares);
+        // 返回总共花费的shares
+        return orderShares;
+    }
+    // 7.商品查询
+    function queryOrderInfo(address _nftAddress, uint256 _tokenId) external view returns (address owner, uint256 price, uint256 sharePrice) {
         _checkOrderExists(_nftAddress, _tokenId);
         owner = orderInfos[_nftAddress][_tokenId].owner;
         price = orderInfos[_nftAddress][_tokenId].price;
+        // 计算shares向下取整，鼓励buyer通过shars支付
+        sharePrice = previewDeposit(price);
     }
 
     //二、支付托管机制
@@ -471,7 +569,7 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
             revert WithdrawCallFail(receiver, amount, returnData);
         }
     }
-    // 收益处理, 返回免佣金额
+    // eth收益处理, 返回免佣金额
     function _processFeeAssets(
         // 佣金金额
         uint256 feeAssets, 
@@ -498,6 +596,8 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
         }else if(feeType == FeeType.FlashLoan) {
             foundInfo.flashEarning += needFee;
             foundInfo.feeFree += freeFee;
+        }else {
+            revert ("feeAssets unhandle fee type");
         }
         if (freeFee > assets) {
             revert ("freeFee calc error!");
@@ -525,6 +625,42 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
                 delete fundsAvailable[owner];
             }
         }
+    }
+
+    // eth收益处理, 返回免佣份额
+    // 注意：因为涉及到shares转换assets，需要在对shares操作之前调用该方法，否则出现计算不准确问题
+    function _processFeeShares(
+        // 佣金份额
+        uint256 feeShares, 
+        // 佣金类型
+        FeeType feeType, 
+        // 资产份额
+        uint256 shares, 
+        // 调用者
+        address caller, 
+        // 资产拥有者
+        address owner
+    ) private returns (uint256) {
+        // checks
+        // effects
+        uint256 feeAssets = previewMint(feeShares);
+        (uint256 needFee, uint256 freeFee) = _calcReturnAmount(owner, feeAssets);
+        if(feeType == FeeType.NFTOrder) {
+            // nft交易佣金
+            foundInfo.nftOrderEarning += needFee;
+            foundInfo.feeFree += freeFee;
+        } else if(feeType == FeeType.FlashLoan) {
+            foundInfo.flashEarning += needFee;
+            foundInfo.feeFree += freeFee;
+        }else {
+            revert ("feeShares unhandle fee type");
+        }
+        if (freeFee > feeAssets) {
+            revert ("freeFee calc error!");
+        }
+        // 收益获取事件
+        emit GetBenefitShares(feeShares, feeType, shares, caller, owner, totalSupply(), totalAssets(), needFee, freeFee);
+        return previewDeposit(freeFee);
     }
     
 
@@ -605,19 +741,32 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
         uint256 value,
         bytes calldata data
     ) public override returns (bool) {
-        // feeAssets为什么最开始计算：因为flashLoan会,执行_burn(fee)，导致previewMint()计算错误
+        // 何实现super.flashLoan()只销毁needFeeShares
+        // ERC20FlashMint.flashLoan()源代码
+        uint256 maxLoan = maxFlashLoan(token);
+        if (value > maxLoan) {
+            revert ERC3156ExceededMaxLoan(maxLoan);
+        }
         // 基金份额fee
         uint256 feeShares = flashFee(token, value);
-        // 转换为资产价值: feeShares值多少eth
-        uint256 feeAssets = previewMint(feeShares);
-        bool success = super.flashLoan(receiver, token, value, data);
-        if (success) {
-            // 记录收益: 将assets(资产规模)设置为feeAssets：因为闪电贷没有资金规模; 并且这样可以避免因feeFree>assets问题导致的revert
-            _processFeeAssets(feeAssets, FeeType.FlashLoan, feeAssets, _msgSender(), _msgSender());
+        // 计算免佣佣金，并记录收益: 将assets(资产规模)设置为feeAssets：因为闪电贷没有资金规模; 并且这样可以避免因feeFree>assets问题导致的revert
+        uint256 freeFeeShares = _processFeeShares(feeShares, FeeType.FlashLoan, value, _msgSender(), _msgSender());
+        uint256 needFeeShares = feeShares - freeFeeShares;
+        _mint(address(receiver), value);
+        if (receiver.onFlashLoan(_msgSender(), token, value, needFeeShares, data) != keccak256("ERC3156FlashBorrower.onFlashLoan")) {
+            revert ERC3156InvalidReceiver(address(receiver));
         }
-        return success;
+        address flashFeeReceiver = _flashFeeReceiver();
+        _spendAllowance(address(receiver), address(this), value + needFeeShares);
+        if (needFeeShares == 0 || flashFeeReceiver == address(0)) {
+            _burn(address(receiver), value + needFeeShares);
+        } else {
+            _burn(address(receiver), value);
+            _transfer(address(receiver), flashFeeReceiver, needFeeShares);
+        }
+        return true;
     }
-    // 3.2 todo 
+    // 3.2 todo 低风险投资收益，合约保留10%的ETH作为流动性储备
 
     receive() external payable {
         if (msg.value > 0) {
@@ -631,8 +780,8 @@ contract NFTSwap is IERC721Receiver,ERC20FlashMint,Pausable {
     }
 }
 contract FlashLoanBorrower is IERC3156FlashBorrower {
-    address public constant nftSwapAddress = 0x473E6A19aCff054ae6Ef353b71dBf300E76B40C4;
-    address public constant lenderAddress = 0x473E6A19aCff054ae6Ef353b71dBf300E76B40C4;
+    address public constant nftSwapAddress = 0xC96EbFDDcED5Ac60136029C1F5486aBDef20BA5F;
+    address public constant lenderAddress = 0xC96EbFDDcED5Ac60136029C1F5486aBDef20BA5F;
     event OnFlashLoanEvent(address initiator, address token, uint256 amount, uint256 fee, bytes data, uint256 approveAmount);
     function testFlashLoan() external {
         // 相当于1w eth
